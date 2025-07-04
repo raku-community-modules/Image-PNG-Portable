@@ -12,17 +12,19 @@ SYNOPSIS
 use Image::PNG::Portable;
 my $o = Image::PNG::Portable.new: :width(16), :height(16);
 $o.set: 8,8, 255,255,255;
+$o.set-text-meta('Author', 'Apogee');
 $o.write: 'image.png';
 
 my $o2 = Image::PNG::Portable.new;
-$o2.read: '/path/to/your.png';
+$o2.read: 'image.png';
 $o2.get: 0, 0; # Pixel color value at x,y of 0,0 => (0, 0, 0, 255)
+$o2.get-text-meta('Author');
 ```
 
 STATUS
 ------
 
-This module is currently useful for outputting 8-bit-per-channel truecolor images. Reading, precompression filters, palettes, grayscale, non-8-bit channels, and ancillary features like gamma correction, color profiles, and textual metadata are all NYI.
+This module is currently useful for reading & outputting 8-bit-per-channel truecolor images with tExt metadata. Writing precompression filters, palettes, grayscale, non-8-bit channels, and ancillary features like gamma correction, and color profiles are all NYI.
 
 DESCRIPTION
 ===========
@@ -75,13 +77,42 @@ Reads the PNG file to the Image object.
 .get($x, $y)
 ------------
 
-Get the color information at pixel $x, $y (zero-indexed).
+Get the color information at pixel $x,$y (zero-indexed).
+
+.set-text-meta($key, $value)
+----------------------------
+
+Set tExt metadata for $key to $value.
+
+.set-text-meta(%pairs)
+----------------------
+
+Set tExt metadata from %pairs.
+
+.text-meta-keys()
+-----------------
+
+Get all tExt metadata keys.
+
+.get-text-meta($key)
+--------------------
+
+Get tExt metadata for given key $key.
+
+.clear-text-metadata()
+----------------------
+
+Clear tExt metadata.
+
+.text-metadata()
+----------------
+
+Get the tExt metadata as a Hash.
 
 AUTHORs
 =======
 
   * raydiak
-
   * Matt Doughty
 
 COPYRIGHT AND LICENSE

@@ -2,8 +2,11 @@ Revision history for Image::PNG::Portable
 
 {{$NEXT}}
 
+    - Add metadata support
+
 0.2  2025-07-03T22:07:20+02:00
     - Add read & get functions, Matt Doughty++
 
 0.1  2025-05-23T13:19:10+02:00
     - Initial version as Raku Community Module
+

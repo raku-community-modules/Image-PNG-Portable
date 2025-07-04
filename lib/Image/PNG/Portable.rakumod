@@ -11,6 +11,7 @@ has Int $!channels;
 has Int $!line-bytes;
 has Int $!data-bytes;
 has Buf $!data;
+has Str %.text-metadata;
 
 # magic string for PNGs
 my $magic = Blob.new: 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A;
@@ -78,11 +79,28 @@ method write(Str:D $file) {
 
     write-chunk $fh, 'IDAT', compress $!data;
 
+    for %!text-metadata.kv -> $key, $value {
+        my @data = flat $key.encode('latin-1').list, 0, $value.encode('latin-1').list;
+        write-chunk $fh, 'tEXt', @data;
+    }
+
     write-chunk $fh, 'IEND';
 
     $fh.close;
 
     True
+}
+
+multi method set-text-meta(Str:D $key, Str:D $value) {
+    fail "Invalid tEXt keyword (must be 1–79 Latin-1 chars)"
+        if !$key || $key.contains(/<:!Script<Latin>>/) || $key.chars > 79;
+    %!text-metadata{$key} = $value;
+}
+
+multi method set-text-meta(%pairs) {
+    for %pairs.kv -> $k, $v {
+        self.set-text-meta($k, $v.Str) with $v;
+    }
 }
 
 sub write-chunk (IO::Handle:D $fh, Str:D $type, @data = ()) {
@@ -112,6 +130,16 @@ method read(Str:D $file) {
 
     my $idat = self!collect-idat(%chunks<IDAT>);
     self!decode-scanlines($idat);
+
+    if %chunks<tEXt>:exists {
+        for %chunks<tEXt>.List -> $chunk {
+            my $null = $chunk.list.first(* == 0, :k);
+            next unless $null.defined;
+            my $key = $chunk.subbuf(0, $null).decode('latin-1');
+            my $val = $chunk.subbuf($null + 1).decode('latin-1');
+            self.set-text-meta($key, $val);
+        }
+    }
 
     True
 }
@@ -242,6 +270,18 @@ method !paeth($a,$b,$c) {
     $pa <= $pb && $pa <= $pc ?? $a
         !! $pb <= $pc        ?? $b
         !!                      $c;
+}
+
+method text-meta-keys {
+    %!text-metadata.keys.sort
+}
+
+method get-text-meta(Str:D $key) {
+    %!text-metadata{$key} // Nil
+}
+
+method clear-text-metadata {
+    %!text-metadata := Hash[Str, Str]({});
 }
 
 sub bytes (Int:D $n is copy, Int:D $count = 0) {

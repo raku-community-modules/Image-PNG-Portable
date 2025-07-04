@@ -1,0 +1,47 @@
+use v6.d;
+use Test;
+use Image::PNG::Portable;
+
+plan 7;
+
+my $file = "t/tmp-meta-test.png";
+
+# Step 1: Create a blank image
+my $img = Image::PNG::Portable.new(:width(2), :height(2));
+
+# Step 2: Set pixel data
+$img.set-all(0, 0, 0, 255);
+
+# Step 3: Set metadata using single-key method
+$img.set-text-meta("author", "Matt");
+$img.set-text-meta("secret", "JAPH");
+
+# Step 4: Set metadata using hash-based multi
+$img.set-text-meta({
+    description => "Test card",
+    version     => "1.0"
+});
+
+# Step 5: Check internal keys
+is $img.text-meta-keys.sort, <author description secret version>.sort, 'All metadata keys set';
+
+# Step 6: Write image to file
+ok $img.write($file), 'Image written to file';
+
+# Step 7: Read image back
+my $read = Image::PNG::Portable.new;
+ok $read.read($file), 'Image read back from file';
+
+# Step 8: Check round-trip metadata
+is-deeply $read.text-meta-keys.sort, <author description secret version>.sort, 'Keys match after read';
+
+is $read.get-text-meta("author"), "Matt", 'Author value preserved';
+is $read.get-text-meta("version"), "1.0", 'Version value preserved';
+
+# Step 9: Clear metadata
+$read.clear-text-metadata;
+is +$read.text-meta-keys, 0, 'Metadata cleared successfully';
+
+# Cleanup
+unlink $file;
+
