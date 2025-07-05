@@ -131,7 +131,6 @@ method !parse-chunks(Blob $data) {
         my $len = uint32-be($data.subbuf($pos, 4));
         my $type = $data.subbuf($pos+4, 4).decode('latin-1');
         my $chunk = $data.subbuf($pos+8, $len);
-        %chunks{$type} //= [];
         %chunks{$type}.push($chunk);
         $pos += 8 + $len + 4;
     }
@@ -182,55 +181,51 @@ method !decode-scanlines(Blob $idat) {
     fail "Corrupt PNG: wrong length" unless $raw.bytes == $!data-bytes;
 
     my $prev = buf8.new($!line-bytes - 1);
-    for ^$!height -> $y {
-        my $offset = $y * $!line-bytes;
-        my $filter = $raw[$offset];
-        my $row    = $raw.subbuf($offset+1, $!line-bytes-1).list;
-        my @unfiltered = self!apply-filter($filter, $row, $prev, $!channels);
+    for ^$!height -> int $y {
+        my int $offset = $y * $!line-bytes;
+        my $filter     = $raw[$offset];
+        my $row        = $raw.subbuf($offset+1, $!line-bytes-1);
+        my $unfiltered = self!apply-filter($filter, $row, $prev, $!channels);
         $!data[$offset] = $filter;
-        $!data[$offset+1 ..^ $offset + $!line-bytes] = @unfiltered;
-        $prev = buf8.new(|@unfiltered);
+        $!data.splice: $offset+1, $!line-bytes, $unfiltered;
+        $prev = $unfiltered;
     }
 }
 
-method !apply-filter($filter, @row, $prev, $channels) {
-    my @cur = @row;
+method !apply-filter(int $filter, $row, $prev, int $channels) {
+    my $cur = $row;
     given $filter {
         when 0 { }
         when 1 { # SUB
-            for ^@row.elems -> $i {
-                @cur[$i] += @cur[$i-$channels] if $i >= $channels;
-                @cur[$i] %= 256;
+            for $channels ..^ $row.elems -> int $i {
+                $cur[$i] += $cur[$i-$channels];
             }
         }
         when 2 { # UP
-            for ^@row.elems -> $i {
-                @cur[$i] += $prev[$i] // 0;
-                @cur[$i] %= 256;
+            for ^$row.elems -> int $i {
+                $cur[$i] += $prev[$i] // 0;
             }
         }
         when 3 { # AVERAGE
-            for ^@row.elems -> $i {
-                my $a = $i >= $channels ?? @cur[$i-$channels] !! 0;
+            for ^$row.elems -> int $i {
+                my $a = $i >= $channels ?? $cur[$i-$channels] !! 0;
                 my $b = $prev[$i] // 0;
-                @cur[$i] += (($a + $b) div 2);
-                @cur[$i] %= 256;
+                $cur[$i] += (($a + $b) div 2);
             }
         }
         when 4 { # PAETH
-            for ^@row.elems -> $i {
-                my $a = $i >= $channels ?? @cur[$i-$channels] !! 0;
+            for ^$row.elems -> int $i {
+                my $a = $i >= $channels ?? $cur[$i-$channels] !! 0;
                 my $b = $prev[$i] // 0;
                 my $c = $i >= $channels ?? $prev[$i-$channels] !! 0;
-                @cur[$i] += self!paeth($a,$b,$c);
-                @cur[$i] %= 256;
+                $cur[$i] += self!paeth($a,$b,$c);
             }
         }
         default {
             fail "Unsupported or invalid PNG filter $filter";
         }
     }
-    @cur
+    $cur
 }
 
 method !paeth($a,$b,$c) {
